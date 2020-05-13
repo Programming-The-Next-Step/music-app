@@ -1,0 +1,10 @@
+Package: musicApp
+Type: Package
+Title: MusicApp
+Version: 0.1.0
+Author: Karel Veldkamp
+Maintainer: karel.veldkamp@student.uva.nl
+Description: Visualizing data from spotify and genius
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
