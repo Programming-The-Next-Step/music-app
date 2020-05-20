@@ -7,12 +7,17 @@ library(jpeg)
 library(visNetwork)
 library(tm)
 
-Sys.setenv(GENIUS_API_TOKEN = 'yYDySPPgWepb-YB3ikWztEzGA1828BGpk9xyjZE91FR6fjfQF71zSmv6tYc3y5gt')
+# the code needs authorization to use the spotify and genius api. Ive hidden these because my repository is public.
+# if you want to run the code you can ask me for them personally.
+Sys.setenv(GENIUS_API_TOKEN = '<hidden>')
 Sys.setenv(SPOTIFY_CLIENT_ID = 'da1a67c279f04bc6a5996f6a7144e45c')
-Sys.setenv(SPOTIFY_CLIENT_SECRET = '2d4b1432f0e449a89806fd1d80409f36')
+Sys.setenv(SPOTIFY_CLIENT_SECRET = '<hidden>')
 
 
-####################################################################################################
+
+# getting network of colaborations -----------------------------------------------------
+
+
 # function that returns list of nodes and edges of an artist's collaboration network based on a name
 getNetwork <- function(artist, progressBar = FALSE, weighted = FALSE)
 {
@@ -64,7 +69,10 @@ getNetwork <- function(artist, progressBar = FALSE, weighted = FALSE)
 }
 
 
-####################################################################################################
+
+# getting images for the network -----------------------------------------
+
+
 # function that returns a dataframe containing the urls of artist images based on a vector of ids
 getImages <- function(artistIds)
 {
@@ -92,7 +100,10 @@ getImages <- function(artistIds)
   return(imagesDF)
 }
 
-####################################################################################################
+
+# getting lyrics to a song -----------------------------------------------
+
+
 # function that returns vector containing words used in a song based on the name of the song and artist
 getSongLyrics = function(songname, artist)
 {
@@ -126,7 +137,6 @@ getSongLyrics = function(songname, artist)
 }
 
 
-####################################################################################################
 # function that returns vector containing words used in an album based on the name of the album and artist
 # this one gets errors still, dont know why
 getAlbumLyrics = function(albumname, artist, progressBar = FALSE)
@@ -167,3 +177,115 @@ getAlbumLyrics = function(albumname, artist, progressBar = FALSE)
 
   return(data)
 }
+
+
+# creating a playlist based on a user selected playlist -------------------
+
+
+# function that creates a playlist based on another playlist which is inputted by the user
+# currently the playlist is made on my own spotify profile (https://open.spotify.com/user/1117862156?si=OMhP-ANnSae9ijUFoqT_ew)
+# because i havent found out how i can let someone without a developper account log in.
+# if you want to try the function you need a playlist ID, which you can get by sharing the link to a playlist
+# (id is the letters/numbers in the url between 'playlist/' and '?si=') note that the playlist you use has to be public
+
+makePlaylist <- function(playlistID){
+
+  # create dataframe with data about the playlist and create variable with list of artists.
+  playlist = get_playlist_audio_features('Karel Veldkamp', playlistID)
+  artists = playlist %>%
+    unnest(track.artists) %>%
+    select(name, id) %>%
+    unique
+
+
+  # sample 30 artists (if n > 30)
+  n = nrow(artists)
+  if (n > 30)
+  {
+    sample <- sample(1:n, 30)
+  }else
+  {
+    sample <- 1:n
+  }
+
+  # create a pool of artist that have collaborated with the artists in the playlist, or that are related to them.
+  artistPool = data.frame()
+  for (i in sample)
+  {
+    collabs = get_artist_albums(artists[i, 'id']) %>%
+      select(artists) %>%
+      unnest(artists) %>%
+      filter(!name %in% artists$name) %>%
+      select(id) %>%
+      unique()
+
+    related = get_related_artists(artists[i, 'id'])[1:5,] %>%
+      filter(!name %in% artists$name) %>%
+      select(id)
+
+    artistPool = rbind(artistPool, collabs, related)
+  }
+
+  # get top tracks from each artist in the artist pool
+  allTracks = data.frame()
+  for (i in 1:nrow(artistPool))
+  {
+    toptracks <- get_artist_top_tracks(artistPool[i,])
+    if (length(toptracks)>0){
+      if (! toptracks$id %in% allTracks$id){
+        tracks <- get_track_audio_features(toptracks$id)
+        allTracks <- rbind(allTracks, tracks)
+      }
+    }
+  }
+
+  # get matrix with scaled audio features.
+  audioFeatures = as.matrix(allTracks[features])
+  audioFeatures = scale(audioFeatures)
+  rownames(audioFeatures) <- allTracks$uri
+
+  # to pick which songs are most similar to the ones in the user playlist. I use k means clustering:
+
+  # first save the audio features of songs in user playlist (scaled to a z score)
+  features = c('danceability', 'energy', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence')
+  playlistProfile = scale(playlist[features])
+
+
+  # then calculate the mean silhouette coefficient for differnt numbers of k to decide the optimal k value:
+  scores = 0  # first score is set to 0 because sillouette coefficient is not defined for k == 1
+  maxCluster = min(nrow(playlistProfile)-1,10) # try up to 10 means
+
+  # this loop tries k means clustering with 2 up to 10 clusters:
+  for (k in 2:maxCluster)
+  {
+    kmeans = kmeans(playlistProfile,k)
+    sCoefs = silhouette(kmeans$cluster, dist(playlistProfile))[,3]
+    scores = c(scores, mean(sCoefs))
+  }
+
+  # I then see which k lead to the highest silhouette score and use that model.
+  k = which.max(scores)
+  model = kmeans(playlistProfile, k)
+
+  # determine how much songs should be chosen for each cluster:
+  clusterSize <- count(model$cluster)$freq / length(model$cluster)
+  clusterSongs <- floor(clusterSize * 30)
+
+  # finally, i loop through the amount of clusters to see how scose each song is to each cluster
+  uris <- c()
+  for (i in 1:k)
+  {
+    # calculate euclidean distance of each song to the cluster center:
+    dist <- rowSums((audioFeatures - model$centers[i,])^2)
+    # i sort the data so shortest distances come first, and save the uris of the first few songs in a variable
+    bestSongs <- sort(dist)[1:clusterSongs[i]]
+    uris <- c(uris, names(bestSongs))
+  }
+
+  # then all is left is to create a playlist. Right now this playlist is made on my own account. I hope to be able to let users
+  # log in and create playlists on their own accounts later.
+  ID <- create_playlist('1117862156',name = 'generated playlist', authorization = get_spotify_authorization_code(scope=scopes[-11]))$id
+  add_tracks_to_playlist(ID, uris = uris, authorization = get_spotify_authorization_code(scope=scopes[-11]))
+}
+
+
