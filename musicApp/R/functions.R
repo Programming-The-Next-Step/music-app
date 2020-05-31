@@ -1,21 +1,11 @@
 app_uri = 'https://carlitov.shinyapps.io/feature_networks/'
 
-
-# function that returns an n row data frame with artist names and ids
-# is useful in the shiny app to give suggestion based on search query.
-#' @export
-getArtistId <- function(query, n=5)
-{
-  results = spotifyr::search_spotify(query, type = 'artist', limit = n)
-  df <- data.frame(name <- results$name,
-                   id <- results$id)
-
-  return(df)
-}
-
-
-
-# function that returns named list of genius ids based on a query (used in shiny app to select song)
+#' Return data frame with genius song names and ids
+#'
+#' @param query Character string that will be used to search genius
+#'
+#' @param n integer that specifies the number of results to return
+#'
 #' @export
 getSongID <- function(query, n = 3)
 {
@@ -26,8 +16,14 @@ getSongID <- function(query, n = 3)
   return(songList)
 }
 
-
-# function that returns named list of spotify ids based on a query (used in shiny app to select artist/album)
+#' Return data frame with spotify items
+#'
+#' @param query Character string that will be used to search spotify
+#'
+#' @param n integer that specifies the number of results to return
+#'
+#' @param type character string that specifies whether to search for artists, albums or playlists.
+#'
 #' @export
 getSpotifyID <- function(query, n = 3, type = c('artist', 'album', 'playlist'))
 {
@@ -43,9 +39,16 @@ getSpotifyID <- function(query, n = 3, type = c('artist', 'album', 'playlist'))
   return(resultList)
 }
 
-# function that returns list of nodes and edges of an artist's collaboration network based on an artists id
-# progressBar is used in the shiny app to create a progress bar
-# if weigted, the edgelist becomes a weigted edgelist
+
+
+#' Return list of nodes and edges based on spotify artist id
+#'
+#' @param ID Character string. artist ID.
+#'
+#' @param progressBar logical that specifies whether a progressbar should be displayed. (only works in shiny)
+#'
+#' @param weighted logical that specifies whether edgelist should be a weighted edgelist
+#'
 #' @export
 getNetwork <- function(ID, progressBar = FALSE, weighted = FALSE)
 {
@@ -92,8 +95,11 @@ getNetwork <- function(ID, progressBar = FALSE, weighted = FALSE)
 
 
 
-# function that returns a dataframe containing the urls of artist images based on a vector of ids
-# this can be used to add images as nodes to a network plot
+
+#' Return dataframe with urls of artist images
+#'
+#' @param IDs Character vector. list of spotify artist IDs
+#'
 #' @export
 getImages <- function(IDs)
 {
@@ -130,7 +136,11 @@ getImages <- function(IDs)
 }
 
 
-# function that returns vector containing words used in a song based on the name of the song and artist
+#' Return list. contains vector of words in song, data frame of audio features, the title of the song and a
+#'                          name of the artist
+#'
+#' @param ID Character. Genius ID of the song
+#'
 #' @export
 getSongLyrics = function(ID)
 {
@@ -177,6 +187,11 @@ getSongLyrics = function(ID)
 
 # function that returns vector containing words used in an album based on the name of the album and artist
 # this one gets errors still, dont know why
+#' Return list. contains vector of words in song, data frame of audio features, the title of the album and a
+#'                          list of songs that could not be found
+#'
+#' @param ID Character. Genius ID of the song
+#'
 #' @export
 getAlbumLyrics <- function(ID, progressBar = FALSE)
 {
@@ -227,8 +242,12 @@ getAlbumLyrics <- function(ID, progressBar = FALSE)
 
 
 
-# function that creates a playlist based on another playlist which is inputted by the user
-# returns a list of uris of the songs in the playlist
+#' creates recommendation playlist ina tibble that contains spotify tracks.
+#'
+#' @param PlaylistID Character. spotify ID of the playlist to use as inspiration
+#'
+#' @param progressBar Logical indicating whether progressbar should be used (only words in shiny)
+#'
 #' @export
 makePlaylist <- function(playlistID, progressBar = FALSE){
 
@@ -334,6 +353,16 @@ makePlaylist <- function(playlistID, progressBar = FALSE){
 }
 
 
+#' Adds playlist to spotify account
+#'
+#' @param userid Character string. spotify ID of the user to add the list to
+#'
+#' @param token Character string. access token to the spotify api (has to be on behald of the userid)
+#'
+#' @param name Character string. name of the playlist to be made
+#'
+#' @param uris list of spotify song uris to add to playlist
+#'
 #' @export
 addPlaylist <- function(userid, token, name, uris)
 {
@@ -363,7 +392,11 @@ addPlaylist <- function(userid, token, name, uris)
 }
 
 
-# this function uses the authorization code for an acces token that we can use to get user data:
+
+#' Get spotify access token
+#'
+#' @param code Character string. spotify authorization code
+#'
 #' @export
 getAccessToken <- function(code)
 {
@@ -387,7 +420,11 @@ getAccessToken <- function(code)
   return(httr::content(r)$access_token)
 }
 
-# function that gets user info
+
+#' Get current user info
+#'
+#' @param token Character string. Spotify access token belonging to current user.
+#'
 #' @export
 getUserInfo <- function(token)
 {
@@ -398,6 +435,12 @@ getUserInfo <- function(token)
 }
 
 # function that creates list of spotify playlists
+#' Get list of current user's spotify playlists
+#'
+#' @param userid Character string. spotify user id of the current user
+#'
+#' @param token Character string. Spotify access token belonging to the current user
+#'
 #' @export
 getUserPlaylists <- function(userid, token)
 {
