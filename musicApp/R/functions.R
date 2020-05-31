@@ -1,6 +1,4 @@
 app_uri = 'https://carlitov.shinyapps.io/feature_networks/'
-require(dplyr)
-
 
 
 # function that returns an n row data frame with artist names and ids
@@ -237,7 +235,7 @@ makePlaylist <- function(playlistID, progressBar = FALSE){
   # create dataframe with data about the playlist and create variable with list of artists.
   playlist <- spotifyr::get_playlist_audio_features('Karel Veldkamp', playlistID)
   artists <- playlist %>%
-    unnest(track.artists) %>%
+    tidyr::unnest(track.artists) %>%
     dplyr::select(name, id) %>%
     unique
 
@@ -257,7 +255,7 @@ makePlaylist <- function(playlistID, progressBar = FALSE){
 
     collabs <- spotifyr::get_artist_albums(artists[i, 'id']) %>%
       dplyr::select(artists) %>%
-      unnest(artists) %>%
+      tidyr::unnest(artists) %>%
       dplyr::filter(!name %in% artists$name) %>%
       dplyr::select(id) %>%
       unique()
@@ -276,7 +274,7 @@ makePlaylist <- function(playlistID, progressBar = FALSE){
   for (i in 1:nrow(artistPool))
   {
     # increment progressbar in shin . (.5 because this loops takes longer then the first one)
-    if (progressBar) shiny::incProgress(amount = .6 * 1/nrow(artistPool), message = 'downloading songs')
+    if (progressBar) shiny::incProgress(amount = .6 * 1/nrow(artistPool), message = 'downloading songs', detail = '')
 
     toptracks <- spotifyr::get_artist_top_tracks(artistPool[i,])
     if (length(toptracks) > 0){
@@ -287,7 +285,7 @@ makePlaylist <- function(playlistID, progressBar = FALSE){
     }
   }
 
-  shiny::incProgress(amount = .1, message = 'deciding which songs you might like')
+  if (progressBar) shiny::incProgress(amount = .1, message = 'deciding which songs you might like')
   features <- c('danceability', 'energy', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence')
   # get matrix with scaled audio features.
   audioFeatures <- as.matrix(allTracks[features])
@@ -309,7 +307,7 @@ makePlaylist <- function(playlistID, progressBar = FALSE){
   for (k in 2:maxCluster)
   {
     kmeans <- stats::kmeans(playlistProfile,k)
-    sCoefs <- cluster::silhouette(kmeans$cluster, dist(playlistProfile))[,3]
+    sCoefs <- cluster::silhouette(kmeans$cluster, stats::dist(playlistProfile))[,3]
     scores <- c(scores, mean(sCoefs))
   }
 
@@ -318,7 +316,7 @@ makePlaylist <- function(playlistID, progressBar = FALSE){
   model <- stats::kmeans(playlistProfile, k)
 
   # determine how much songs should be chosen for each cluster:
-  clusterSize <- count(model$cluster)$freq / length(model$cluster)
+  clusterSize <- plyr::count(model$cluster)$freq / length(model$cluster)
   clusterSongs <- floor(clusterSize * 30)
 
   # finally, i loop through the amount of clusters to see how scose each song is to each cluster
@@ -348,17 +346,16 @@ addPlaylist <- function(userid, token, name, uris)
                   body = body,
                   config = httr::add_headers(headers),
                   encode = 'json')
-  httr::content(r)
 
   # then fill it up with songs
   url <-  paste0('https://api.spotify.com/v1/playlists/', httr::content(r)$id ,'/tracks')
 
   body <- list(uris = uris)
 
-  x <- httr:POST(url = url,
-            config = httr::add_headers(headers),
-            body = body,
-            encode = 'json')
+  x <- httr::POST(url = url,
+                  config = httr::add_headers(headers),
+                  body = body,
+                  encode = 'json')
 
 
   return(httr::content(r))
@@ -395,7 +392,7 @@ getAccessToken <- function(code)
 getUserInfo <- function(token)
 {
   req <- httr::GET(url = 'https://api.spotify.com/v1/me',
-             config = httr::add_headers('Authorization' = paste('Bearer', token)))
+                   config = httr::add_headers('Authorization' = paste('Bearer', token)))
 
   return(httr::content(req))
 }
@@ -409,8 +406,8 @@ getUserPlaylists <- function(userid, token)
 
   # maximum playlists per request is 50 so we have to loop though cutpoints
   req <- httr::GET(url,
-             query = list(limit = 50),
-             config = httr::add_headers(c(Authorization = paste('Bearer',token)))
+                   query = list(limit = 50),
+                   config = httr::add_headers(c(Authorization = paste('Bearer',token)))
   )
 
   n <- httr::content(req)$total
@@ -423,8 +420,8 @@ getUserPlaylists <- function(userid, token)
   {
     # get images for the current chunk of max 50 artists:
     playlists <-httr::GET(url,
-                     query = list(limit = 50, offset = cutpoints[i]),
-                     config = httr::add_headers(c(Authorization = paste('Bearer',token)))
+                          query = list(limit = 50, offset = cutpoints[i]),
+                          config = httr::add_headers(c(Authorization = paste('Bearer',token)))
     )
 
     content <- httr::content(playlists)$items
